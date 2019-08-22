@@ -73,7 +73,7 @@ fbClass::fbClass(const char *fb)
 		goto nolfb;
 	}
 
-	available = fix.smem_len;
+	available=fix.smem_len;
 	m_phys_mem = fix.smem_start;
 #if defined(CONFIG_ION)
 	/* allocate accel memory here... its independent from the framebuffer */

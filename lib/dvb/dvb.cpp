@@ -3,6 +3,7 @@
 #include <linux/dvb/version.h>
 
 #include <lib/base/eerror.h>
+#include <lib/base/estring.h>
 #include <lib/base/wrappers.h>
 #include <lib/dvb/cahandler.h>
 #include <lib/dvb/idvb.h>
@@ -1758,7 +1759,7 @@ static size_t diff_upto(off_t high, off_t low, size_t max)
 }
 
 	/* remember, this gets called from another thread. */
-void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off_t &start, size_t &size, int blocksize)
+void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off_t &start, size_t &size, int blocksize, int &sof)
 {
 	unsigned int max = align(1024*1024*1024, blocksize);
 	current_offset = align(current_offset, blocksize);
@@ -1947,6 +1948,7 @@ void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off
 					eDebug("[eDVBChannel] reached SOF");
 					m_skipmode_m = 0;
 					m_pvr_thread->sendEvent(eFilePushThread::evtUser);
+					sof = 1;
 				}
 			} else
 			{
@@ -1969,6 +1971,7 @@ void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off
 		eDebug("[eDVBChannel] reached SOF");
 		m_skipmode_m = 0;
 		m_pvr_thread->sendEvent(eFilePushThread::evtUser);
+		sof = 1;
 	}
 
 	start = current_offset;
