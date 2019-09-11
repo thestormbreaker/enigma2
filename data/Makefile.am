@@ -18,7 +18,7 @@ dist_pkgdata_DATA = \
 	hd-testcard.mvi \
 	iso-639-3.pck \
 	distro-logo.png \
-        groupedservices \
+	groupedservices \
 	otv_011a0000_0002_07d4.dict \
 	otv_00820000_fbff_16a8.dict \
 	otv_06180000_1000_0011.dict \
@@ -48,8 +48,16 @@ if HAVE_COLORLCD220
 SUBDIRS += display220
 endif
 
+if HAVE_COLORLCD390
+SUBDIRS += display390
+endif
+
 if HAVE_COLORLCD400
 SUBDIRS += display400
+endif
+
+if HAVE_COLORLCD400DM
+SUBDIRS += display400dm
 endif
 
 if HAVE_COLORLCD480
