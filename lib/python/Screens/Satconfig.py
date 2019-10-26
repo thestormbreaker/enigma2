@@ -94,6 +94,7 @@ class NimSetup(Screen, ConfigListScreen, ServiceStopScreen):
 			self.nimConfig.configMode.setChoices(config_mode_choices, "simple")
 
 	def createSetup(self):
+		self.adaptConfigModeChoices()
 		self.list = [ ]
 
 		self.multiType = self.configMode = self.diseqcModeEntry = self.advancedSatsEntry = self.advancedLnbsEntry = self.advancedDiseqcMode = self.advancedUsalsEntry = self.advancedLof =\
@@ -136,26 +137,13 @@ class NimSetup(Screen, ConfigListScreen, ServiceStopScreen):
 					if self.nimConfig.diseqcMode.value in ("positioner", "positioner_select"):
 						self.createPositionerSetup(self.list)
 				elif self.nimConfig.configMode.value == "equal":
-					choices = []
-					nimlist = nimmanager.canEqualTo(self.nim.slot)
-					for id in nimlist:
-						choices.append((str(id), nimmanager.getNimDescription(id)))
-					self.nimConfig.connectedTo.setChoices(choices)
+					self.nimConfig.connectedTo.setChoices([((str(id), nimmanager.getNimDescription(id))) for id in nimmanager.canEqualTo(self.nim.slot)])
 					self.list.append(getConfigListEntry(self.indent % _("Tuner"), self.nimConfig.connectedTo, _("This setting allows the tuner configuration to be a duplication of how another tuner is already configured.")))
 				elif self.nimConfig.configMode.value == "satposdepends":
-					choices = []
-					nimlist = nimmanager.canDependOn(self.nim.slot)
-					for id in nimlist:
-						choices.append((str(id), nimmanager.getNimDescription(id)))
-					self.nimConfig.connectedTo.setChoices(choices)
+					self.nimConfig.connectedTo.setChoices([((str(id), nimmanager.getNimDescription(id)) for id in nimmanager.canDependOn(self.nim.slot))])
 					self.list.append(getConfigListEntry(self.indent % _("Tuner"), self.nimConfig.connectedTo, _("Select the tuner that controls the motorised dish.")))
 				elif self.nimConfig.configMode.value == "loopthrough":
-					choices = []
-					print "[Satconfig] connectable to:", nimmanager.canConnectTo(self.slotid)
-					connectable = nimmanager.canConnectTo(self.slotid)
-					for id in connectable:
-						choices.append((str(id), nimmanager.getNimDescription(id)))
-					self.nimConfig.connectedTo.setChoices(choices)
+					self.nimConfig.connectedTo.setChoices([((str(id), nimmanager.getNimDescription(id))) for id in nimmanager.canConnectTo(self.slotid)])
 					self.list.append(getConfigListEntry(self.indent % _("Connected to"), self.nimConfig.connectedTo, _("Select the tuner that this loopthrough depends on.")))
 				elif self.nimConfig.configMode.value == "nothing":
 					pass
@@ -634,7 +622,6 @@ class NimSetup(Screen, ConfigListScreen, ServiceStopScreen):
 		self.slotid = slotid
 		self.nim = nimmanager.nim_slots[slotid]
 		self.nimConfig = self.nim.config
-		self.adaptConfigModeChoices()
 		self.createSetup()
 		self.setTitle(_("Setup") + " " + self.nim.friendly_full_description)
 		
@@ -919,16 +906,16 @@ class NimSelection(Screen):
 class SelectSatsEntryScreen(Screen):
 	skin = """
 		<screen name="SelectSatsEntryScreen" position="center,center" size="560,410" title="Select Sats Entry" >
-			<ePixmap name="red" position="0,0" zPosition="2" size="140,40" pixmap="buttons/red.png" transparent="1" alphatest="on" />
-			<ePixmap name="green" position="140,0" zPosition="2" size="140,40" pixmap="buttons/green.png" transparent="1" alphatest="on" />
-			<ePixmap name="yellow" position="280,0" zPosition="2" size="140,40" pixmap="buttons/yellow.png" transparent="1" alphatest="on" />
-			<ePixmap name="blue" position="420,0" zPosition="2" size="140,40" pixmap="buttons/blue.png" transparent="1" alphatest="on" />
+			<ePixmap name="red" position="0,0" zPosition="2" size="140,40" pixmap="skin_default/buttons/red.png" transparent="1" alphatest="on" />
+			<ePixmap name="green" position="140,0" zPosition="2" size="140,40" pixmap="skin_default/buttons/green.png" transparent="1" alphatest="on" />
+			<ePixmap name="yellow" position="280,0" zPosition="2" size="140,40" pixmap="skin_default/buttons/yellow.png" transparent="1" alphatest="on" />
+			<ePixmap name="blue" position="420,0" zPosition="2" size="140,40" pixmap="skin_default/buttons/blue.png" transparent="1" alphatest="on" />
 			<widget name="key_red" position="0,0" size="140,40" valign="center" halign="center" zPosition="4" foregroundColor="white" font="Regular;17" transparent="1" shadowColor="background" shadowOffset="-2,-2" />
 			<widget name="key_green" position="140,0" size="140,40" valign="center" halign="center" zPosition="4" foregroundColor="white" font="Regular;17" transparent="1" shadowColor="background" shadowOffset="-2,-2" />
 			<widget name="key_yellow" position="280,0" size="140,40" valign="center" halign="center" zPosition="4" foregroundColor="white" font="Regular;17" transparent="1" shadowColor="background" shadowOffset="-2,-2" />
 			<widget name="key_blue" position="420,0" size="140,40" valign="center" halign="center" zPosition="4" foregroundColor="white" font="Regular;17" transparent="1" shadowColor="background" shadowOffset="-2,-2" />
 			<widget name="list" position="10,40" size="540,330" scrollbarMode="showNever" />
-			<ePixmap pixmap="div-h.png" position="0,375" zPosition="1" size="540,2" transparent="1" alphatest="on" />
+			<ePixmap pixmap="skin_default/div-h.png" position="0,375" zPosition="1" size="540,2" transparent="1" alphatest="on" />
 			<widget name="hint" position="10,380" size="540,25" font="Regular;19" halign="center" transparent="1" />
 		</screen>"""
 	def __init__(self, session, menu_path="", userSatlist=""):

@@ -11,13 +11,12 @@ from Components.ScrollLabel import ScrollLabel
 from Components.Console import Console
 from Components.config import config
 from enigma import eTimer, getEnigmaVersionString, getDesktop
-from boxbranding import getMachineBrand, getMachineBuild, getMachineName, getImageVersion, getImageType, getImageBuild, getDriverDate, getImageDevBuild
+from boxbranding import getMachineBrand, getMachineName, getImageVersion, getImageType, getImageBuild, getDriverDate, getImageDevBuild
 from Components.Pixmap import MultiPixmap
 from Components.Network import iNetwork
 from Components.SystemInfo import SystemInfo
 from Tools.StbHardware import getFPVersion
 from Tools.Multiboot import GetCurrentImage, GetCurrentImageMode
-from Tools.Directories import fileExists, fileCheck, pathExists
 from os import path
 from re import search
 import skin
@@ -74,10 +73,8 @@ class About(Screen):
 		AboutText += _("Model:\t%s %s\n") % (getMachineBrand(), getMachineName())
 
 		if about.getChipSetString() != _("unavailable"):
-			if SystemInfo["HasHiSi"]:
-				AboutText += _("Chipset:\tHiSilicon %s\n") % about.getChipSetString().upper()
-			elif about.getIsBroadcom():
-				AboutText += _("Chipset:\tBroadcom %s\n") % about.getChipSetString().upper()
+			if about.getIsBroadcom():
+				AboutText += _("Chipset:\tBCM%s\n") % about.getChipSetString().upper()
 			else:
 				AboutText += _("Chipset:\t%s\n") % about.getChipSetString().upper()
 
@@ -88,18 +85,11 @@ class About(Screen):
 		AboutText += _("Image:\t%s.%s%s (%s)\n") % (getImageVersion(), getImageBuild(), imageSubBuild, getImageType().title())
 
 		if SystemInfo["canMultiBoot"]:
-			slot = image = GetCurrentImage()
-			part = "eMMC slot %s" %slot
+			image = GetCurrentImage()
 			bootmode = ""
 			if SystemInfo["canMode12"]:
 				bootmode = "bootmode = %s" %GetCurrentImageMode()
-			if SystemInfo["HasSDmmc"]:
-				slot += 1
-				if image != 0:
-					part = "SDC slot %s (%s%s) " %(image, SystemInfo["canMultiBoot"][2], image*2)
-				else:
-					part = "eMMC slot %s" %slot
-			AboutText += _("Image Slot:\t%s") % "STARTUP_" + str(slot) + "  " + part + " " + bootmode + "\n"
+			AboutText += _("Image Slot:\t%s") % "STARTUP_" + str(image) + " " + bootmode + "\n"
 
 		skinWidth = getDesktop(0).size().width()
 		skinHeight = getDesktop(0).size().height()
@@ -148,12 +138,7 @@ class About(Screen):
 				f.close()
 			except:
 				tempinfo = ""
-		elif path.exists('/proc/hisi/msp/pm_cpu'):
-			try:
-				tempinfo = search('temperature = (\d+) degree', open("/proc/hisi/msp/pm_cpu").read()).group(1)
-			except:
-				tempinfo = ""
-		if tempinfo and int(tempinfo) > 0:
+		if tempinfo and int(tempinfo.replace('\n', '')) > 0:
 			mark = str('\xc2\xb0')
 			AboutText += _("Processor temp:\t%s") % tempinfo.replace('\n', '').replace(' ','') + mark + "C\n"
 		AboutLcdText = AboutText.replace('\t', ' ')
@@ -188,7 +173,7 @@ class About(Screen):
 		if rootfs2 and kernel2:
 			return True
 		else:
-			return False
+			return False		
 
 	def showTranslationInfo(self):
 		self.session.open(TranslationInfo, self.menu_path)
@@ -300,13 +285,7 @@ class Devices(Screen):
 			if not parts:
 				continue
 			device = parts[3]
-			if SystemInfo["HasRootSubdir"]:
-				if not search('sd[a-z][1-9]', device):
-					continue
-			else:	
-				if not search('sd[a-z][1-9]', device) and not search('mmcblk[0-9]p[1-9]', device):
-					continue
-			if SystemInfo["HasSDmmc"] and pathExists("/dev/sda4") and search('sd[a][1-4]', device):
+			if not search('sd[a-z][1-9]', device):
 				continue
 			if device in list2:
 				continue
@@ -341,12 +320,9 @@ class Devices(Screen):
 					freeline = _("Free: ") + str(free) + _("MB")
 				else:
 					freeline = _("Free: ") + _("full")
-				if mount.find('mmc') == -1 and mount.find('boot') == -1:
-					self.list.append(mount + '\t' + sizeline + ' \t' + freeline)
+				self.list.append(mount + '\t' + sizeline + ' \t' + freeline)
 			else:
-				print "MOUNT:", mount
-				if mount.find('mmc') == -1:
-					self.list.append(mount + '\t' + _('Not mounted'))
+				self.list.append(mount + '\t' + _('Not mounted'))
 
 			list2.append(device)
 		self.list = '\n'.join(self.list)
@@ -593,84 +569,57 @@ class SystemNetworkInfo(Screen):
 
 	def getInfoCB(self, data, status):
 		self.LinkState = None
-		if data is not None and data:
-			if status is not None:
-# getDataForInterface()->iwconfigFinished() in
-# Plugins/SystemPlugins/WirelessLan/Wlan.py sets fields to boolean False
-# if there is no info for them, so we need to check that possibility
-# for each status[self.iface] field...
-#
-				if self.iface == 'wlan0' or self.iface == 'wlan3' or self.iface == 'ra0':
-# accesspoint is used in the "enc" code too, so we get it regardless
-#
-					if not status[self.iface]["accesspoint"]:
-						accesspoint = _("Unknown")
-					else:
+		if data is not None:
+			if data is True:
+				if status is not None:
+					if self.iface == 'wlan0' or self.iface == 'wlan3' or self.iface == 'ra0':
+						if status[self.iface]["essid"] == "off":
+							essid = _("No connection")
+						else:
+							essid = status[self.iface]["essid"]
 						if status[self.iface]["accesspoint"] == "Not-Associated":
 							accesspoint = _("Not-Associated")
 							essid = _("No connection")
 						else:
 							accesspoint = status[self.iface]["accesspoint"]
-					if self.has_key("BSSID"):
-						self.AboutText += _('Accesspoint:') + '\t' + accesspoint + '\n'
+						if self.has_key("BSSID"):
+							self.AboutText += _('Accesspoint:') + '\t' + accesspoint + '\n'
+						if self.has_key("ESSID"):
+							self.AboutText += _('SSID:') + '\t' + essid + '\n'
 
-					if self.has_key("ESSID"):
-						if not status[self.iface]["essid"]:
-							essid = _("Unknown")
+						quality = status[self.iface]["quality"]
+						if self.has_key("quality"):
+							self.AboutText += _('Link quality:') + '\t' + quality + '\n'
+
+						if status[self.iface]["bitrate"] == '0':
+							bitrate = _("Unsupported")
 						else:
-							if status[self.iface]["essid"] == "off":
-								essid = _("No connection")
+							bitrate = str(status[self.iface]["bitrate"]) + " Mb/s"
+						if self.has_key("bitrate"):
+							self.AboutText += _('Bitrate:') + '\t' + bitrate + '\n'
+
+						signal = status[self.iface]["signal"]
+						if self.has_key("signal"):
+							self.AboutText += _('Signal strength:') + '\t' + signal + '\n'
+
+						if status[self.iface]["encryption"] == "off":
+							if accesspoint == "Not-Associated":
+								encryption = _("Disabled")
 							else:
-								essid = status[self.iface]["essid"]
-						self.AboutText += _('SSID:') + '\t' + essid + '\n'
-
-					if self.has_key("quality"):
-						if not status[self.iface]["quality"]:
-							quality = _("Unknown")
+								encryption = _("Unsupported")
 						else:
-							quality = status[self.iface]["quality"]
-						self.AboutText += _('Link quality:') + '\t' + quality + '\n'
+							encryption = _("Enabled")
+						if self.has_key("enc"):
+							self.AboutText += _('Encryption:') + '\t' + encryption + '\n'
 
-					if self.has_key("bitrate"):
-						if not status[self.iface]["bitrate"]:
-							bitrate = _("Unknown")
+						if status[self.iface]["essid"] == "off" or status[self.iface]["accesspoint"] == "Not-Associated" or status[self.iface]["accesspoint"] is False:
+							self.LinkState = False
+							self["statuspic"].setPixmapNum(1)
+							self["statuspic"].show()
 						else:
-							if status[self.iface]["bitrate"] == '0':
-								bitrate = _("Unsupported")
-							else:
-								bitrate = str(status[self.iface]["bitrate"]) + " Mb/s"
-						self.AboutText += _('Bitrate:') + '\t' + bitrate + '\n'
-
-					if self.has_key("signal"):
-						if not status[self.iface]["signal"]:
-							signal = _("Unknown")
-						else:
-							signal = status[self.iface]["signal"]
-						self.AboutText += _('Signal strength:') + '\t' + signal + '\n'
-
-					if self.has_key("enc"):
-						if not status[self.iface]["encryption"]:
-							encryption = _("Unknown")
-						else:
-							if status[self.iface]["encryption"] == "off":
-								if accesspoint == "Not-Associated":
-									encryption = _("Disabled")
-								else:
-									encryption = _("Unsupported")
-							else:
-								encryption = _("Enabled")
-						self.AboutText += _('Encryption:') + '\t' + encryption + '\n'
-
-					if ((status[self.iface]["essid"] and status[self.iface]["essid"] == "off") or
-					    not status[self.iface]["accesspoint"] or
-					    status[self.iface]["accesspoint"] == "Not-Associated"):
-						self.LinkState = False
-						self["statuspic"].setPixmapNum(1)
-						self["statuspic"].show()
-					else:
-						self.LinkState = True
-						iNetwork.checkNetworkState(self.checkNetworkCB)
-					self["AboutScrollLabel"].setText(self.AboutText)
+							self.LinkState = True
+							iNetwork.checkNetworkState(self.checkNetworkCB)
+						self["AboutScrollLabel"].setText(self.AboutText)
 
 	def exit(self):
 		self.close(True)
