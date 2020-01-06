@@ -84,7 +84,7 @@ def resolveFilename(scope, base="", path_prefix=None):
 		try:
 			os.makedirs(path)
 		except OSError, e:
-			print "[Directories] Error %d: Couldn't create directory '%s' (%s)" % (e.errno, path, os.strerror(e.error))
+			print "[Directories] Error %d: Couldn't create directory '%s' (%s)" % (e.errno, path, os.strerror(e.errno))
 			return None
 	# Remove any suffix data and restore it at the end.
 	suffix = None
@@ -108,11 +108,12 @@ def resolveFilename(scope, base="", path_prefix=None):
 		skin = os.path.dirname(config.skin.primary_skin.value)
 		resolveList = [
 			os.path.join(defaultPaths[SCOPE_CONFIG][0], skin),
+			os.path.join(defaultPaths[SCOPE_CONFIG][0], "skin_common"),
+			defaultPaths[SCOPE_CONFIG][0],  # Can we deprecate top level of SCOPE_CONFIG directory to allow a clean up?
 			os.path.join(defaultPaths[SCOPE_SKIN][0], skin),
 			os.path.join(defaultPaths[SCOPE_SKIN][0], "skin_fallback_%d" % getDesktop(0).size().height()),
 			os.path.join(defaultPaths[SCOPE_SKIN][0], "skin_default"),
-			defaultPaths[SCOPE_SKIN][0],
-			defaultPaths[SCOPE_CONFIG][0]  # Deprecated top level of SCOPE_CONFIG directory.
+			defaultPaths[SCOPE_SKIN][0]  # Can we deprecate top level of SCOPE_SKIN directory to allow a clean up?
 		]
 		for item in resolveList:
 			file = os.path.join(item, base)
@@ -128,11 +129,12 @@ def resolveFilename(scope, base="", path_prefix=None):
 			skin = ""
 		resolveList = [
 			os.path.join(defaultPaths[SCOPE_CONFIG][0], "display", skin),
+			os.path.join(defaultPaths[SCOPE_CONFIG][0], "display", "skin_common"),
+			defaultPaths[SCOPE_CONFIG][0],  # Can we deprecate top level of SCOPE_CONFIG directory to allow a clean up?
 			os.path.join(defaultPaths[SCOPE_LCDSKIN][0], skin),
 			os.path.join(defaultPaths[SCOPE_LCDSKIN][0], "skin_fallback_%s" % getDesktop(1).size().height()),
 			os.path.join(defaultPaths[SCOPE_LCDSKIN][0], "skin_default"),
-			defaultPaths[SCOPE_LCDSKIN][0],
-			defaultPaths[SCOPE_CONFIG][0]  # Deprecated top level of SCOPE_CONFIG directory.
+			defaultPaths[SCOPE_LCDSKIN][0]  # Can we deprecate top level of SCOPE_LCDSKIN directory to allow a clean up?
 		]
 		for item in resolveList:
 			file = os.path.join(item, base)
@@ -143,20 +145,21 @@ def resolveFilename(scope, base="", path_prefix=None):
 		# This import must be here as this module finds the config file as part of the config initialisation.
 		from Components.config import config
 		skin = os.path.dirname(config.skin.primary_skin.value)
-		if hasattr(config.skin, "display_skin"):
-			display = os.path.dirname(config.skin.display_skin.value)
-		else:
-			display = ""
+		display = os.path.dirname(config.skin.display_skin.value) if hasattr(config.skin, "display_skin") else None
 		resolveList = [
 			os.path.join(defaultPaths[SCOPE_CONFIG][0], "fonts"),
-			os.path.join(defaultPaths[SCOPE_SKIN][0], skin),
-			os.path.join(defaultPaths[SCOPE_SKIN][0], "skin_default"),
-			os.path.join(defaultPaths[SCOPE_LCDSKIN][0], display),
-			os.path.join(defaultPaths[SCOPE_LCDSKIN][0], "skin_default"),
-			defaultPaths[SCOPE_FONTS][0],
-			os.path.join(defaultPaths[SCOPE_CONFIG][0], skin),
-			os.path.join(defaultPaths[SCOPE_CONFIG][0], display)
+			os.path.join(defaultPaths[SCOPE_CONFIG][0], skin)
 		]
+		if display:
+			resolveList.append(os.path.join(defaultPaths[SCOPE_CONFIG][0], "display", display))
+		resolveList.append(os.path.join(defaultPaths[SCOPE_CONFIG][0], "skin_common"))
+		resolveList.append(defaultPaths[SCOPE_CONFIG][0])  # Can we deprecate top level of SCOPE_CONFIG directory to allow a clean up?
+		resolveList.append(os.path.join(defaultPaths[SCOPE_SKIN][0], skin))
+		resolveList.append(os.path.join(defaultPaths[SCOPE_SKIN][0], "skin_default"))
+		if display:
+			resolveList.append(os.path.join(defaultPaths[SCOPE_LCDSKIN][0], display))
+		resolveList.append(os.path.join(defaultPaths[SCOPE_LCDSKIN][0], "skin_default"))
+		resolveList.append(defaultPaths[SCOPE_FONTS][0])
 		for item in resolveList:
 			file = os.path.join(item, base)
 			if pathExists(file):
@@ -192,7 +195,7 @@ def bestRecordingLocation(candidates):
 					biggest = size
 					path = candidate[1]
 		except Exception, e:
-			print "[Directories] Error %d: Couldn't get free space for '%s' (%s)" % (e.errno, candidate[1], os.strerror(e.error))
+			print "[Directories] Error %d: Couldn't get free space for '%s' (%s)" % (e.errno, candidate[1], os.strerror(e.errno))
 	return path
 
 def defaultRecordingLocation(candidate=None):
@@ -324,7 +327,7 @@ def copyfile(src, dst):
 				break
 			f2.write(buf)
 	except OSError, e:
-		print "[Directories] Error %d: Copying file '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.error))
+		print "[Directories] Error %d: Copying file '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.errno))
 		status = -1
 	if f1 is not None:
 		f1.close()
@@ -335,13 +338,13 @@ def copyfile(src, dst):
 		try:
 			os.chmod(dst, S_IMODE(st.st_mode))
 		except OSError, e:
-			print "[Directories] Error %d: Setting modes from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.error))
+			print "[Directories] Error %d: Setting modes from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.errno))
 		try:
 			os.utime(dst, (st.st_atime, st.st_mtime))
 		except OSError, e:
-			print "[Directories] Error %d: Setting times from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.error))
+			print "[Directories] Error %d: Setting times from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.errno))
 	except OSError, e:
-		print "[Directories] Error %d: Obtaining stats from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.error))
+		print "[Directories] Error %d: Obtaining stats from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.errno))
 	return status
 
 def copytree(src, dst, symlinks=False):
@@ -364,19 +367,19 @@ def copytree(src, dst, symlinks=False):
 			else:
 				copyfile(srcname, dstname)
 		except OSError, e:
-			print "[Directories] Error %d: Copying tree '%s' to '%s'! (%s)" % (e.errno, srcname, dstname, os.strerror(e.error))
+			print "[Directories] Error %d: Copying tree '%s' to '%s'! (%s)" % (e.errno, srcname, dstname, os.strerror(e.errno))
 	try:
 		st = os.stat(src)
 		try:
 			os.chmod(dst, S_IMODE(st.st_mode))
 		except OSError, e:
-			print "[Directories] Error %d: Setting modes from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.error))
+			print "[Directories] Error %d: Setting modes from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.errno))
 		try:
 			os.utime(dst, (st.st_atime, st.st_mtime))
 		except OSError, e:
-			print "[Directories] Error %d: Setting times from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.error))
+			print "[Directories] Error %d: Setting times from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.errno))
 	except OSError, e:
-		print "[Directories] Error %d: Obtaining stats from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.error))
+		print "[Directories] Error %d: Obtaining stats from '%s' to '%s'! (%s)" % (e.errno, src, dst, os.strerror(e.errno))
 
 # Renames files or if source and destination are on different devices moves them in background
 # input list of (source, destination)
@@ -396,7 +399,7 @@ def moveFiles(fileList):
 			extMoveFiles(fileList, item[0])
 			print "[Directories] Moving files in background."
 		else:
-			print "[Directories] Error %d: Moving file '%s' to '%s'! (%s)" % (e.errno, item[0], item[1], os.strerror(e.error))
+			print "[Directories] Error %d: Moving file '%s' to '%s'! (%s)" % (e.errno, item[0], item[1], os.strerror(e.errno))
 			errorFlag = True
 	if errorFlag:
 		print "[Directories] Reversing renamed files due to error."
@@ -404,7 +407,7 @@ def moveFiles(fileList):
 			try:
 				os.rename(item[1], item[0])
 			except OSError, e:
-				print "[Directories] Error %d: Renaming '%s' to '%s'! (%s)" % (e.errno, item[1], item[0], os.strerror(e.error))
+				print "[Directories] Error %d: Renaming '%s' to '%s'! (%s)" % (e.errno, item[1], item[0], os.strerror(e.errno))
 				print "[Directories] Failed to undo move:", item
 
 def getSize(path, pattern=".*"):
@@ -437,12 +440,15 @@ def getExtension(file):
 
 def mediafilesInUse(session):
 	from Components.MovieList import KNOWN_EXTENSIONS
-	files = [x[2] for x in lsof() if getExtension(x[2]) in KNOWN_EXTENSIONS]
+	files = [os.path.basename(x[2]) for x in lsof() if getExtension(x[2]) in KNOWN_EXTENSIONS]
 	service = session.nav.getCurrentlyPlayingServiceOrGroup()
 	filename = service and service.getPath()
-	if filename and "://" in filename:  # When path is a stream ignore it.
-		filename = None
-	return set([file for file in files if not(filename and file.startswith(filename) and files.count(filename) < 2)])
+	if filename:
+		if "://" in filename:  # When path is a stream ignore it.
+			filename = None
+		else:
+			filename = os.path.basename(filename)
+	return set([file for file in files if not(filename and file == filename and files.count(filename) < 2)])
 
 # Prepare filenames for use in external shell processing. Filenames may
 # contain spaces or other special characters.  This method adjusts the
