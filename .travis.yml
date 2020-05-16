@@ -3,11 +3,6 @@ language: cpp
 sudo: required
 dist: trusty
 
-branches:
-  only:
-  - Dev
-  - T2MI
-
 addons:
   apt:
     packages:
@@ -32,62 +27,6 @@ addons:
 
 matrix:
   include:
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-4.9
-            - linux-libc-dev
-            - git
-            - build-essential
-            - automake
-            - libtool
-            - python-dev
-            - zlib1g-dev
-            - gettext
-            - swig
-            - libgstreamer1.0-dev
-            - libgstreamer-plugins-base1.0-dev
-            - libfreetype6-dev
-            - libsigc++-2.0-dev
-            - libfribidi-dev
-            - libssl-dev
-            - libavahi-client-dev
-            - libjpeg-turbo8-dev
-            - libgif-dev
-      env:
-         - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9"
-
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-5
-            - linux-libc-dev
-            - git
-            - build-essential
-            - automake
-            - libtool
-            - python-dev
-            - zlib1g-dev
-            - gettext
-            - swig
-            - libgstreamer1.0-dev
-            - libgstreamer-plugins-base1.0-dev
-            - libfreetype6-dev
-            - libsigc++-2.0-dev
-            - libfribidi-dev
-            - libssl-dev
-            - libavahi-client-dev
-            - libjpeg-turbo8-dev
-            - libgif-dev
-      env:
-         - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
-
     - os: linux
       addons:
         apt:
@@ -144,14 +83,52 @@ matrix:
       env:
         - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
 
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-8
+            - linux-libc-dev
+            - git
+            - build-essential
+            - automake
+            - libtool
+            - python-dev
+            - zlib1g-dev
+            - gettext
+            - swig
+            - libgstreamer1.0-dev
+            - libgstreamer-plugins-base1.0-dev
+            - libfreetype6-dev
+            - libsigc++-2.0-dev
+            - libfribidi-dev
+            - libssl-dev
+            - libavahi-client-dev
+            - libjpeg-turbo8-dev
+            - libgif-dev
+      env:
+        - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8"
+
+git:
+  depth: 10
+
 before_install:
     - eval "${MATRIX_EVAL}"
+    - curl -L https://people.freedesktop.org/~slomo/gstreamer.tar.gz | tar xz
+    - sed -i "s;prefix=/root/gstreamer;prefix=$PWD/gstreamer;g" $PWD/gstreamer/lib/x86_64-linux-gnu/pkgconfig/*.pc
+    - export PKG_CONFIG_PATH=$PWD/gstreamer/lib/x86_64-linux-gnu/pkgconfig
+    - export GST_PLUGIN_SYSTEM_PATH=$PWD/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0
+    - export GST_PLUGIN_SCANNER=$PWD/gstreamer/libexec/gstreamer-1.0/gst-plugin-scanner
+    - export PATH=$PATH:$PWD/gstreamer/bin
+    - export LD_LIBRARY_PATH=$PWD/gstreamer/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 
 script:
 - echo installing libdvbsi++
 - pushd .
 - cd /tmp
-- git clone git://git.opendreambox.org/git/obi/libdvbsi++.git
+- git clone --depth 1 git://git.opendreambox.org/git/obi/libdvbsi++.git
 - cd libdvbsi++
 - autoreconf -i
 - ./configure
@@ -161,7 +138,7 @@ script:
 - echo installing tuxbox
 - pushd .
 - cd /tmp
-- git clone https://github.com/OpenPLi/tuxtxt.git
+- git clone --depth 1 https://github.com/OpenPLi/tuxtxt.git
 - cd tuxtxt/libtuxtxt
 - autoreconf -i
 - ./configure --with-boxtype=generic DVB_API_VERSION=5
@@ -179,3 +156,5 @@ script:
 - make
 - python -m compileall .
 - echo done!
+
+

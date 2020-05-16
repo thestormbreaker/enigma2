@@ -1,24 +1,25 @@
-from Screen import Screen
-from Screens.SoftwareUpdate import UpdatePlugin
-from Screens.GitCommitInfo import CommitInfo
+from os import listdir, path
+from re import search
+from enigma import eTimer, getEnigmaVersionString, getDesktop
+from boxbranding import getMachineBrand, getMachineBuild, getMachineName, getImageVersion, getImageType, getImageBuild, getDriverDate, getImageDevBuild
+from Components.About import about
 from Components.ActionMap import ActionMap
 from Components.Button import Button
-from Components.Sources.StaticText import StaticText
-from Components.Harddisk import Harddisk
-from Components.NimManager import nimmanager
-from Components.About import about
-from Components.ScrollLabel import ScrollLabel
-from Components.Console import Console
 from Components.config import config
-from enigma import eTimer, getEnigmaVersionString, getDesktop
-from boxbranding import getMachineBrand, getMachineName, getImageVersion, getImageType, getImageBuild, getDriverDate, getImageDevBuild
-from Components.Pixmap import MultiPixmap
+from Components.Console import Console
+from Components.Harddisk import harddiskmanager
 from Components.Network import iNetwork
+from Components.NimManager import nimmanager
+from Components.Pixmap import MultiPixmap
+from Components.ScrollLabel import ScrollLabel
+from Components.Sources.StaticText import StaticText
 from Components.SystemInfo import SystemInfo
-from Tools.StbHardware import getFPVersion
+from Screen import Screen
+from Screens.GitCommitInfo import CommitInfo
+from Screens.SoftwareUpdate import UpdatePlugin
+from Tools.Directories import fileExists, fileCheck, pathExists
 from Tools.Multiboot import GetCurrentImage, GetCurrentImageMode
-from os import path
-from re import search
+from Tools.StbHardware import getFPVersion
 import skin
 
 class About(Screen):
@@ -73,8 +74,10 @@ class About(Screen):
 		AboutText += _("Model:\t%s %s\n") % (getMachineBrand(), getMachineName())
 
 		if about.getChipSetString() != _("unavailable"):
-			if about.getIsBroadcom():
-				AboutText += _("Chipset:\tBCM%s\n") % about.getChipSetString().upper()
+			if SystemInfo["HasHiSi"]:
+				AboutText += _("Chipset:\tHiSilicon %s\n") % about.getChipSetString().upper()
+			elif about.getIsBroadcom():
+				AboutText += _("Chipset:\tBroadcom %s\n") % about.getChipSetString().upper()
 			else:
 				AboutText += _("Chipset:\t%s\n") % about.getChipSetString().upper()
 
@@ -84,12 +87,27 @@ class About(Screen):
 			imageSubBuild = ".%s" % getImageDevBuild()
 		AboutText += _("Image:\t%s.%s%s (%s)\n") % (getImageVersion(), getImageBuild(), imageSubBuild, getImageType().title())
 
+		if SystemInfo["HasH9SD"]:
+			if "rootfstype=ext4" in open('/sys/firmware/devicetree/base/chosen/bootargs', 'r').read():
+				part = "        - SD card in use for Image root \n" 
+			else:
+				part = "        - eMMC slot in use for Image root \n"
+			AboutText += _("%s") % part
+
 		if SystemInfo["canMultiBoot"]:
-			image = GetCurrentImage()
+			slot = image= GetCurrentImage()
+			part = "eMMC slot %s" %slot
 			bootmode = ""
 			if SystemInfo["canMode12"]:
-				bootmode = "bootmode = %s" %GetCurrentImageMode()
-			AboutText += _("Image Slot:\t%s") % "STARTUP_" + str(image) + " " + bootmode + "\n"
+				bootmode = "bootmode = %s" %GetCurrentImageMode()		
+			print "[About] HasHiSi = %s, slot = %s" %(SystemInfo["HasHiSi"], slot)
+			if SystemInfo["HasHiSi"] and "sda" in SystemInfo["canMultiBoot"][slot]['root']:
+				if slot > 4:
+					image -=4
+				else:
+					image -=1
+				part = "SDcard slot %s (%s) " %(image, SystemInfo["canMultiBoot"][slot]['root'])
+			AboutText += _("Image Slot:\t%s") % "STARTUP_" + str(slot) + "  " + part + " " + bootmode + "\n"
 
 		skinWidth = getDesktop(0).size().width()
 		skinHeight = getDesktop(0).size().height()
@@ -110,35 +128,35 @@ class About(Screen):
 
 		tempinfo = ""
 		if path.exists('/proc/stb/sensors/temp0/value'):
-			f = open('/proc/stb/sensors/temp0/value', 'r')
-			tempinfo = f.read()
-			f.close()
+			with open('/proc/stb/sensors/temp0/value', 'r') as f:
+				tempinfo = f.read()
 		elif path.exists('/proc/stb/fp/temp_sensor'):
-			f = open('/proc/stb/fp/temp_sensor', 'r')
-			tempinfo = f.read()
-			f.close()
+			with open('/proc/stb/fp/temp_sensor', 'r') as f:
+				tempinfo = f.read()
 		elif path.exists('/proc/stb/sensors/temp/value'):
-			f = open('/proc/stb/sensors/temp/value', 'r')
-			tempinfo = f.read()
-			f.close()
+			with open('/proc/stb/sensors/temp/value', 'r') as f:
+				tempinfo = f.read()
 		if tempinfo and int(tempinfo.replace('\n', '')) > 0:
 			mark = str('\xc2\xb0')
 			AboutText += _("System temp:\t%s") % tempinfo.replace('\n', '').replace(' ','') + mark + "C\n"
 
 		tempinfo = ""
 		if path.exists('/proc/stb/fp/temp_sensor_avs'):
-			f = open('/proc/stb/fp/temp_sensor_avs', 'r')
-			tempinfo = f.read()
-			f.close()
+			with open('/proc/stb/fp/temp_sensor_avs', 'r') as f:
+				tempinfo = f.read()
 		elif path.exists('/sys/devices/virtual/thermal/thermal_zone0/temp'):
 			try:
-				f = open('/sys/devices/virtual/thermal/thermal_zone0/temp', 'r')
-				tempinfo = f.read()
-				tempinfo = tempinfo[:-4]
-				f.close()
+				with open('/sys/devices/virtual/thermal/thermal_zone0/temp', 'r') as f:
+					tempinfo = f.read()
+					tempinfo = tempinfo[:-4]
 			except:
 				tempinfo = ""
-		if tempinfo and int(tempinfo.replace('\n', '')) > 0:
+		elif path.exists('/proc/hisi/msp/pm_cpu'):
+			try:
+				tempinfo = search('temperature = (\d+) degree', open("/proc/hisi/msp/pm_cpu").read()).group(1)
+			except:
+				tempinfo = ""
+		if tempinfo and int(tempinfo) > 0:
 			mark = str('\xc2\xb0')
 			AboutText += _("Processor temp:\t%s") % tempinfo.replace('\n', '').replace(' ','') + mark + "C\n"
 		AboutLcdText = AboutText.replace('\t', ' ')
@@ -162,18 +180,17 @@ class About(Screen):
 	def dualBoot(self):
 		rootfs2 = False
 		kernel2 = False
-		f = open("/proc/mtd")
-		self.dualbootL = f.readlines()
-		for x in self.dualbootL:
-			if 'rootfs2' in x:
-				rootfs2 = True
-			if 'kernel2' in x:
-				kernel2 = True
-		f.close()
-		if rootfs2 and kernel2:
-			return True
-		else:
-			return False		
+		with open("/proc/mtd") as f:
+			self.dualbootL = f.readlines()
+			for x in self.dualbootL:
+				if 'rootfs2' in x:
+					rootfs2 = True
+				if 'kernel2' in x:
+					kernel2 = True
+			if rootfs2 and kernel2:
+				return True
+			else:
+				return False
 
 	def showTranslationInfo(self):
 		self.session.open(TranslationInfo, self.menu_path)
@@ -277,54 +294,28 @@ class Devices(Screen):
 
 				self["Tuner" + str(count)].setText(text)
 
+		self.hddlist = harddiskmanager.HDDList()
 		self.list = []
-		list2 = []
-		f = open('/proc/partitions', 'r')
-		for line in f.readlines():
-			parts = line.strip().split()
-			if not parts:
-				continue
-			device = parts[3]
-			if not search('sd[a-z][1-9]', device):
-				continue
-			if device in list2:
-				continue
-
-			mount = '/dev/' + device
-			f = open('/proc/mounts', 'r')
-			for line in f.readlines():
-				if device in line:
-					parts = line.strip().split()
-					mount = str(parts[1])
-					break
-			f.close()
-
-			if not mount.startswith('/dev/'):
-				size = Harddisk(device).diskSize()
-				free = Harddisk(device).free()
-
-				if ((float(size) / 1024) / 1024) >= 1:
-					sizeline = _("Size: ") + str(round(((float(size) / 1024) / 1024), 2)) + _("TB")
-				elif (size / 1024) >= 1:
-					sizeline = _("Size: ") + str(round((float(size) / 1024), 2)) + _("GB")
-				elif size >= 1:
-					sizeline = _("Size: ") + str(size) + _("MB")
-				else:
-					sizeline = _("Size: ") + _("unavailable")
-
+		if self.hddlist:
+			for count in range(len(self.hddlist)):
+				hdd = self.hddlist[count][1]
+				hddp = self.hddlist[count][0]
+				if "ATA" in hddp:
+					hddp = hddp.replace('ATA', '')
+					hddp = hddp.replace('Internal', 'ATA Bus ')
+				free = hdd.Totalfree()
 				if ((float(free) / 1024) / 1024) >= 1:
 					freeline = _("Free: ") + str(round(((float(free) / 1024) / 1024), 2)) + _("TB")
 				elif (free / 1024) >= 1:
 					freeline = _("Free: ") + str(round((float(free) / 1024), 2)) + _("GB")
 				elif free >= 1:
 					freeline = _("Free: ") + str(free) + _("MB")
+				elif "Generic(STORAGE" in hddp:				# This is the SDA boot volume for SF8008 if "full" #
+					continue
 				else:
 					freeline = _("Free: ") + _("full")
-				self.list.append(mount + '\t' + sizeline + ' \t' + freeline)
-			else:
-				self.list.append(mount + '\t' + _('Not mounted'))
-
-			list2.append(device)
+				line = "%s      %s" %(hddp, freeline)
+				self.list.append(line)
 		self.list = '\n'.join(self.list)
 		self["hdd"].setText(self.list)
 
@@ -343,7 +334,10 @@ class Devices(Screen):
 				if self.mountinfo:
 					self.mountinfo += "\n"
 				self.mountinfo += "%s (%sB, %sB %s)" % (ipaddress, mounttotal, mountfree, _("free"))
-
+		if pathExists("/media/autofs"):
+			for entry in sorted(listdir("/media/autofs")):
+				mountEntry = path.join("/media/autofs", entry)
+				self.mountinfo += _("\n %s is also enabled for autofs network mount" % (mountEntry))
 		if self.mountinfo:
 			self["mounts"].setText(self.mountinfo)
 		else:
@@ -569,57 +563,84 @@ class SystemNetworkInfo(Screen):
 
 	def getInfoCB(self, data, status):
 		self.LinkState = None
-		if data is not None:
-			if data is True:
-				if status is not None:
-					if self.iface == 'wlan0' or self.iface == 'wlan3' or self.iface == 'ra0':
-						if status[self.iface]["essid"] == "off":
-							essid = _("No connection")
-						else:
-							essid = status[self.iface]["essid"]
+		if data is not None and data:
+			if status is not None:
+# getDataForInterface()->iwconfigFinished() in
+# Plugins/SystemPlugins/WirelessLan/Wlan.py sets fields to boolean False
+# if there is no info for them, so we need to check that possibility
+# for each status[self.iface] field...
+#
+				if self.iface == 'wlan0' or self.iface == 'wlan3' or self.iface == 'ra0':
+# accesspoint is used in the "enc" code too, so we get it regardless
+#
+					if not status[self.iface]["accesspoint"]:
+						accesspoint = _("Unknown")
+					else:
 						if status[self.iface]["accesspoint"] == "Not-Associated":
 							accesspoint = _("Not-Associated")
 							essid = _("No connection")
 						else:
 							accesspoint = status[self.iface]["accesspoint"]
-						if self.has_key("BSSID"):
-							self.AboutText += _('Accesspoint:') + '\t' + accesspoint + '\n'
-						if self.has_key("ESSID"):
-							self.AboutText += _('SSID:') + '\t' + essid + '\n'
+					if self.has_key("BSSID"):
+						self.AboutText += _('Accesspoint:') + '\t' + accesspoint + '\n'
 
-						quality = status[self.iface]["quality"]
-						if self.has_key("quality"):
-							self.AboutText += _('Link quality:') + '\t' + quality + '\n'
-
-						if status[self.iface]["bitrate"] == '0':
-							bitrate = _("Unsupported")
+					if self.has_key("ESSID"):
+						if not status[self.iface]["essid"]:
+							essid = _("Unknown")
 						else:
-							bitrate = str(status[self.iface]["bitrate"]) + " Mb/s"
-						if self.has_key("bitrate"):
-							self.AboutText += _('Bitrate:') + '\t' + bitrate + '\n'
-
-						signal = status[self.iface]["signal"]
-						if self.has_key("signal"):
-							self.AboutText += _('Signal strength:') + '\t' + signal + '\n'
-
-						if status[self.iface]["encryption"] == "off":
-							if accesspoint == "Not-Associated":
-								encryption = _("Disabled")
+							if status[self.iface]["essid"] == "off":
+								essid = _("No connection")
 							else:
-								encryption = _("Unsupported")
-						else:
-							encryption = _("Enabled")
-						if self.has_key("enc"):
-							self.AboutText += _('Encryption:') + '\t' + encryption + '\n'
+								essid = status[self.iface]["essid"]
+						self.AboutText += _('SSID:') + '\t' + essid + '\n'
 
-						if status[self.iface]["essid"] == "off" or status[self.iface]["accesspoint"] == "Not-Associated" or status[self.iface]["accesspoint"] is False:
-							self.LinkState = False
-							self["statuspic"].setPixmapNum(1)
-							self["statuspic"].show()
+					if self.has_key("quality"):
+						if not status[self.iface]["quality"]:
+							quality = _("Unknown")
 						else:
-							self.LinkState = True
-							iNetwork.checkNetworkState(self.checkNetworkCB)
-						self["AboutScrollLabel"].setText(self.AboutText)
+							quality = status[self.iface]["quality"]
+						self.AboutText += _('Link quality:') + '\t' + quality + '\n'
+
+					if self.has_key("bitrate"):
+						if not status[self.iface]["bitrate"]:
+							bitrate = _("Unknown")
+						else:
+							if status[self.iface]["bitrate"] == '0':
+								bitrate = _("Unsupported")
+							else:
+								bitrate = str(status[self.iface]["bitrate"]) + " Mb/s"
+						self.AboutText += _('Bitrate:') + '\t' + bitrate + '\n'
+
+					if self.has_key("signal"):
+						if not status[self.iface]["signal"]:
+							signal = _("Unknown")
+						else:
+							signal = status[self.iface]["signal"]
+						self.AboutText += _('Signal strength:') + '\t' + signal + '\n'
+
+					if self.has_key("enc"):
+						if not status[self.iface]["encryption"]:
+							encryption = _("Unknown")
+						else:
+							if status[self.iface]["encryption"] == "off":
+								if accesspoint == "Not-Associated":
+									encryption = _("Disabled")
+								else:
+									encryption = _("Unsupported")
+							else:
+								encryption = _("Enabled")
+						self.AboutText += _('Encryption:') + '\t' + encryption + '\n'
+
+					if ((status[self.iface]["essid"] and status[self.iface]["essid"] == "off") or
+					    not status[self.iface]["accesspoint"] or
+					    status[self.iface]["accesspoint"] == "Not-Associated"):
+						self.LinkState = False
+						self["statuspic"].setPixmapNum(1)
+						self["statuspic"].show()
+					else:
+						self.LinkState = True
+						iNetwork.checkNetworkState(self.checkNetworkCB)
+					self["AboutScrollLabel"].setText(self.AboutText)
 
 	def exit(self):
 		self.close(True)
@@ -700,9 +721,14 @@ class AboutSummary(Screen):
 
 		tempinfo = ""
 		if path.exists('/proc/stb/sensors/temp0/value'):
-			tempinfo = open('/proc/stb/sensors/temp0/value', 'r').read()
+			with open('/proc/stb/sensors/temp0/value', 'r') as f:
+				tempinfo = f.read()
 		elif path.exists('/proc/stb/fp/temp_sensor'):
-			tempinfo = open('/proc/stb/fp/temp_sensor', 'r').read()
+			with open('/proc/stb/fp/temp_sensor', 'r') as f:
+				tempinfo = f.read()
+		elif path.exists('/proc/stb/sensors/temp/value'):
+			with open('/proc/stb/sensors/temp/value', 'r') as f:
+				tempinfo = f.read()
 		if tempinfo and int(tempinfo.replace('\n', '')) > 0:
 			mark = str('\xc2\xb0')
 			AboutText += _("System temperature: %s") % tempinfo.replace('\n', '') + mark + "C\n\n"

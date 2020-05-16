@@ -1,7 +1,7 @@
 from time import time
 from os import path
 
-from enigma import eServiceCenter, eServiceReference, eTimer, pNavigation, getBestPlayableServiceReference, iPlayableService, setPreferredTuner, eDVBLocalTimeHandler
+from enigma import eServiceCenter, eServiceReference, eTimer, pNavigation, getBestPlayableServiceReference, iPlayableService, setPreferredTuner, eDVBLocalTimeHandler, iRecordableServicePtr
 
 from Components.ParentalControl import parentalControl
 from Components.config import config
@@ -15,7 +15,6 @@ import NavigationInstance
 import ServiceReference
 from Screens.InfoBar import InfoBar, MoviePlayer
 from Components.Sources.StreamService import StreamServiceList
-from boxbranding import getBoxType, getBrandOEM, getMachineBuild
 
 # TODO: remove pNavgation, eNavigation and rewrite this stuff in python.
 class Navigation:
@@ -223,7 +222,9 @@ class Navigation:
 		return service
 
 	def stopRecordService(self, service):
-		ret = self.pnav and self.pnav.stopRecordService(service)
+		ret = -1
+		if service and isinstance(service, iRecordableServicePtr):
+			ret = self.pnav and self.pnav.stopRecordService(service)
 		return ret
 
 	def getRecordings(self, simulate=False):

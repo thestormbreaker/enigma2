@@ -335,6 +335,12 @@ void eventData::load(FILE *f)
 		p.data[0] = header[0];
 		p.data[1] = header[1];
 		ret = fread(p.data+2, bytes-2, 1, f);
+		// make sure we are not leaking memory
+		DescriptorMap::iterator it = descriptors.find(id);
+		if (it != descriptors.end())
+		{
+			delete [] it->second.data; // free descriptor memory
+		}
 		descriptors[id] = p;
 		--size;
 	}
@@ -380,7 +386,7 @@ static pthread_mutex_t channel_map_lock =
 DEFINE_REF(eEPGCache)
 
 eEPGCache::eEPGCache()
-	:messages(this,1), cleanTimer(eTimer::create(this)), m_running(false), m_channel_pending(false), m_load_pending(false)
+	:messages(this,1), cleanTimer(eTimer::create(this)), m_running(false)
 {
 	eDebug("[eEPGCache] Initialized EPGCache (wait for setCacheFile call now)");
 
@@ -1317,12 +1323,6 @@ static const char* EPGDAT_IN_FLASH = "/epg.dat";
 
 void eEPGCache::load()
 {
-	if (m_channel_pending)
-	{
-		eDebug("[eEPGCache] delay epgcache load until channel data is ready");
-		m_load_pending = true;
-		return;
-	}
 	if (m_filename.empty())
 		m_filename = "/hdd/epg.dat";
 	const char* EPGDAT = m_filename.c_str();
@@ -1610,19 +1610,12 @@ void eEPGCache::channel_data::finishEPG()
 #endif
 		singleLock l(cache_lock);
 		cache->channelLastUpdated[channel->getChannelID()] = ::time(0);
-		eEPGCache::getInstance()->m_channel_pending = false;
-		if (eEPGCache::getInstance()->m_load_pending)
-		{
-			eEPGCache::getInstance()->m_load_pending = false;
-			eEPGCache::getInstance()->load();
-		}
 	}
 }
 
 void eEPGCache::channel_data::startEPG()
 {
 	eDebug("[eEPGCache] start caching events(%ld)", ::time(0));
-	eEPGCache::getInstance()->m_channel_pending = true;
 	state=0;
 	haveData=0;
 	for (unsigned int i=0; i < sizeof(seenSections)/sizeof(tidMap); ++i)
@@ -1644,7 +1637,7 @@ void eEPGCache::channel_data::startEPG()
 	memset(&mask, 0, sizeof(mask));
 
 #ifdef ENABLE_MHW_EPG
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::MHW)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::MHW && m_MHWReader)
 	{
 		mask.pid = 0xD3;
 		mask.data[0] = 0x91;
@@ -1669,7 +1662,7 @@ void eEPGCache::channel_data::startEPG()
 	}
 #endif
 #ifdef ENABLE_FREESAT
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::FREESAT_SCHEDULE_OTHER)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::FREESAT_SCHEDULE_OTHER && m_FreeSatScheduleOtherReader)
 	{
 		mask.pid = 3842;
 		mask.flags = eDVBSectionFilterMask::rfCRC;
@@ -1707,7 +1700,7 @@ void eEPGCache::channel_data::startEPG()
 		eDebug("[eEPGCache] Using non-standard pid %#x", mask.pid);
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NOWNEXT)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NOWNEXT && m_NowNextReader)
 	{
 		mask.data[0] = 0x4E;
 		mask.mask[0] = 0xFE;
@@ -1716,7 +1709,7 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= NOWNEXT;
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::SCHEDULE)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::SCHEDULE && m_ScheduleReader)
 	{
 		mask.data[0] = 0x50;
 		mask.mask[0] = 0xF0;
@@ -1725,7 +1718,7 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= SCHEDULE;
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::SCHEDULE_OTHER)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::SCHEDULE_OTHER && m_ScheduleOtherReader)
 	{
 		mask.data[0] = 0x60;
 		mask.mask[0] = 0xF0;
@@ -1735,7 +1728,7 @@ void eEPGCache::channel_data::startEPG()
 	}
 
 #ifdef ENABLE_VIRGIN
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIRGIN_NOWNEXT)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIRGIN_NOWNEXT && m_VirginNowNextReader)
 	{
 		mask.pid = 0x2bc;
 		mask.data[0] = 0x4E;
@@ -1745,7 +1738,7 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= VIRGIN_NOWNEXT;
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIRGIN_SCHEDULE)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIRGIN_SCHEDULE && m_VirginScheduleReader)
 	{
 		mask.pid = 0x2bc;
 		mask.data[0] = 0x50;
@@ -1756,7 +1749,7 @@ void eEPGCache::channel_data::startEPG()
 	}
 #endif
 #ifdef ENABLE_NETMED
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NETMED_SCHEDULE)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NETMED_SCHEDULE && m_NetmedScheduleReader)
 	{
 		mask.pid = 0x1388;
 		mask.data[0] = 0x50;
@@ -1766,7 +1759,7 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= NETMED_SCHEDULE;
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NETMED_SCHEDULE_OTHER)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NETMED_SCHEDULE_OTHER && m_NetmedScheduleOtherReader)
 	{
 		mask.pid = 0x1388;
 		mask.data[0] = 0x60;
@@ -1823,7 +1816,7 @@ void eEPGCache::channel_data::startEPG()
 			eDebug("[eEPGCache] abort non avail OpenTV EIT reading");
 	}
 #endif
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIASAT)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIASAT && m_ViasatReader)
 	{
 		mask.pid = 0x39;
 
@@ -2068,7 +2061,7 @@ void eEPGCache::channel_data::OPENTV_checkCompletion(uint32_t data_crc)
 				sids.push_back(m_OPENTV_channels_map[channelid].serviceId);
 				cache->submitEventData(sids, chids, it->second.startTime, it->second.duration, m_OPENTV_descriptors_map[it->second.title_crc].c_str(), "", "", 0, eEPGCache::OPENTV);
 			}
-			m_OPENTV_EIT_map.erase(it);
+			// m_OPENTV_EIT_map.erase(it); // removed for further testing due to seg fault, endless spinner and blocking issues
 		}
 		m_OPENTV_descriptors_map.clear();
 

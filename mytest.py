@@ -11,7 +11,7 @@ profile("PYTHON_START")
 # Don't remove this line. It may seem to do nothing, but if removed,
 # it will break output redirection for crash logs.
 import Tools.RedirectOutput
-from boxbranding import getBoxType, getBrandOEM, getImageVersion, getImageBuild, getImageDevBuild, getImageType, getMachineBuild
+from boxbranding import getBoxType, getBrandOEM, getImageVersion, getImageBuild, getImageDevBuild, getImageType, getMachineBuild, getImageArch
 print "[Image Type] %s" % getImageType()
 print "[Image Version] %s" % getImageVersion()
 print "[Image Build] %s" % getImageBuild()
@@ -26,7 +26,16 @@ enigma.eSocketNotifier = eBaseImpl.eSocketNotifier
 enigma.eConsoleAppContainer = eConsoleImpl.eConsoleAppContainer
 boxtype = getBoxType()
 
+if getImageArch() in ("aarch64"):
+	import usb.core
+	import usb.backend.libusb1
+	usb.backend.libusb1.get_backend(find_library=lambda x: "/lib64/libusb-1.0.so.0")
+
 from traceback import print_exc
+
+profile("Geolocation")
+import Tools.Geolocation
+Tools.Geolocation.InitGeolocation()
 
 profile("ClientMode")
 import Components.ClientMode
@@ -604,8 +613,10 @@ def runScreenTest():
 	return 0
 
 profile("Init:skin")
+print "[Enigma2] Initialising Skins."
 import skin
-skin.loadSkinData(enigma.getDesktop(0))
+skin.InitSkins()
+print "[Enigma2] Initialisation of Skins complete."
 
 profile("InputDevice")
 import Components.InputDevice
