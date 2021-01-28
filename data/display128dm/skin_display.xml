@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--suppress XmlUnboundNsPrefix, XmlUnboundNsPrefix -->
-<!--  Skin: LCD -->
+<!--  Skin: LCD dm8000-->
 <skin>
 	<windowstyle id="2" type="skinned">
 		<color color="#000000" name="Background"/>
